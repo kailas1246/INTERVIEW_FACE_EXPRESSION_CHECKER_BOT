@@ -12,12 +12,18 @@ export function useWebcam() {
     setError(null);
 
     try {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera access not supported in this browser');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
           facingMode: 'user'
-        }
+        },
+        audio: false
       });
 
       if (videoRef.current) {
@@ -26,7 +32,22 @@ export function useWebcam() {
         setIsActive(true);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to access webcam';
+      let errorMessage = 'Failed to access webcam';
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage = 'Camera permission denied. Please allow camera access and try again.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No camera found. Please connect a camera and try again.';
+        } else if (err.name === 'NotReadableError') {
+          errorMessage = 'Camera is already in use by another application.';
+        } else if (err.name === 'OverconstrainedError') {
+          errorMessage = 'Camera does not meet the required constraints.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       console.error('Webcam error:', err);
     } finally {

@@ -45,6 +45,22 @@ export default function InterviewAnalyzer() {
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
+  const handleStartCamera = async () => {
+    try {
+      await startWebcam();
+      toast({
+        title: "Camera Started",
+        description: "Camera access granted successfully."
+      });
+    } catch (error) {
+      toast({
+        title: "Camera Error",
+        description: "Please allow camera access in your browser and try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleStartAnalysis = async () => {
     try {
       if (!webcamActive) {
@@ -169,6 +185,7 @@ export default function InterviewAnalyzer() {
               isAnalyzing={isAnalyzing}
               onStartAnalysis={handleStartAnalysis}
               onStopAnalysis={handleStopAnalysis}
+              onStartCamera={handleStartCamera}
               status={getStatus()}
             />
           </div>

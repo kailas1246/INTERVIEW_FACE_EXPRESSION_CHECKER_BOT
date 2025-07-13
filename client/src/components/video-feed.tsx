@@ -9,6 +9,7 @@ interface VideoFeedProps {
   isAnalyzing: boolean;
   onStartAnalysis: () => void;
   onStopAnalysis: () => void;
+  onStartCamera?: () => void;
   status: string;
 }
 
@@ -19,6 +20,7 @@ export function VideoFeed({
   isAnalyzing,
   onStartAnalysis,
   onStopAnalysis,
+  onStartCamera,
   status
 }: VideoFeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,34 +105,38 @@ export function VideoFeed({
         
         {/* Camera Controls */}
         <div className="flex items-center justify-center space-x-4 mt-4">
-          <Button
-            onClick={onStartAnalysis}
-            disabled={!isActive || isAnalyzing}
-            className="bg-green-500 hover:bg-green-600 text-black font-semibold"
-          >
-            <Play className="w-4 h-4 mr-2" />
-            START ANALYSIS
-          </Button>
+          {!isActive && (
+            <Button
+              onClick={onStartCamera}
+              className="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold"
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              ENABLE CAMERA
+            </Button>
+          )}
           
-          <Button
-            onClick={onStopAnalysis}
-            disabled={!isAnalyzing}
-            variant="destructive"
-            className="font-semibold"
-          >
-            <Square className="w-4 h-4 mr-2" />
-            STOP
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="icon"
-            className="tech-border rounded-lg hover:scale-105 transition-transform border-0"
-          >
-            <div className="tech-border-content p-2 rounded-lg">
-              <Camera className="w-4 h-4 text-gray-400 hover:text-cyan-400 transition-colors" />
-            </div>
-          </Button>
+          {isActive && (
+            <>
+              <Button
+                onClick={onStartAnalysis}
+                disabled={isAnalyzing}
+                className="bg-green-500 hover:bg-green-600 text-black font-semibold"
+              >
+                <Play className="w-4 h-4 mr-2" />
+                START ANALYSIS
+              </Button>
+              
+              <Button
+                onClick={onStopAnalysis}
+                disabled={!isAnalyzing}
+                variant="destructive"
+                className="font-semibold"
+              >
+                <Square className="w-4 h-4 mr-2" />
+                STOP
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
