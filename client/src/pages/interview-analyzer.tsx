@@ -10,6 +10,7 @@ import { ConfidenceScore } from '@/components/confidence-score';
 import { ExpressionAnalysis } from '@/components/expression-analysis';
 import { RealTimeStats } from '@/components/real-time-stats';
 import { ScoreChart } from '@/components/score-chart';
+import { InterviewSimulation } from '@/components/interview-simulation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -51,18 +52,7 @@ export default function InterviewAnalyzer() {
     shareResults
   } = useDataExport();
 
-  const [interviewQuestions] = useState([
-    "Tell me about yourself and your background.",
-    "What are your greatest strengths?",
-    "Describe a challenging project you've worked on.",
-    "Where do you see yourself in 5 years?",
-    "Why do you want this position?",
-    "Tell me about a time you faced a difficult situation.",
-    "What motivates you in your work?",
-    "Do you have any questions for us?"
-  ]);
-  
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
 
   // Track session data for exports
   useEffect(() => {
@@ -122,11 +112,7 @@ export default function InterviewAnalyzer() {
     });
   };
 
-  const nextQuestion = () => {
-    setCurrentQuestionIndex(prev => 
-      prev < interviewQuestions.length - 1 ? prev + 1 : prev
-    );
-  };
+
 
   const getStatus = () => {
     if (faceDetectionError) return "Face detection error";
@@ -243,57 +229,7 @@ export default function InterviewAnalyzer() {
               confidenceScore={analysisData.confidenceScore}
             />
 
-            {/* Interview Simulation Panel */}
-            <div className="tech-border rounded-xl">
-              <div className="tech-border-content rounded-xl p-6">
-                <h3 className="font-orbitron text-lg font-bold text-cyan-400 mb-4 glow-text">
-                  INTERVIEW SIM
-                </h3>
-                
-                {/* Question Display */}
-                <div className="bg-gray-900 rounded-lg p-4 mb-4">
-                  <div className="text-sm text-gray-400 mb-2">Current Question:</div>
-                  <div className="text-sm font-medium">
-                    "{interviewQuestions[currentQuestionIndex]}"
-                  </div>
-                </div>
-                
-                {/* Question Controls */}
-                <div className="flex flex-col space-y-2">
-                  <Button
-                    onClick={nextQuestion}
-                    disabled={currentQuestionIndex >= interviewQuestions.length - 1}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-semibold"
-                  >
-                    Next Question
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-gray-600 hover:border-cyan-400 text-gray-400 hover:text-cyan-400 font-semibold"
-                  >
-                    Pause Interview
-                  </Button>
-                </div>
-                
-                {/* Progress */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-gray-400">Progress</span>
-                    <span className="text-cyan-400">
-                      {currentQuestionIndex + 1}/{interviewQuestions.length}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-cyan-400 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${((currentQuestionIndex + 1) / interviewQuestions.length) * 100}%`
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <InterviewSimulation />
           </div>
         </div>
 
