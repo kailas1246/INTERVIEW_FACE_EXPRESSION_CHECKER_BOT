@@ -26,23 +26,36 @@ export function VideoFeed({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Sync canvas size with video
+    // Sync canvas size with video - IMPORTANT for preventing double overlay
     if (videoRef.current && canvasRef.current && containerRef.current) {
       const updateCanvasSize = () => {
         const video = videoRef.current!;
         const canvas = canvasRef.current!;
         const container = containerRef.current!;
         
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
+        // Set canvas size to match container exactly
+        const rect = container.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        
+        // Also set CSS size to prevent scaling issues
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        
+        console.log(`📐 Canvas resized to: ${canvas.width}x${canvas.height}`);
       };
 
       const video = videoRef.current;
       video.addEventListener('loadedmetadata', updateCanvasSize);
+      video.addEventListener('canplay', updateCanvasSize);
       window.addEventListener('resize', updateCanvasSize);
+      
+      // Initial size update
+      setTimeout(updateCanvasSize, 100);
 
       return () => {
         video.removeEventListener('loadedmetadata', updateCanvasSize);
+        video.removeEventListener('canplay', updateCanvasSize);
         window.removeEventListener('resize', updateCanvasSize);
       };
     }
@@ -74,10 +87,17 @@ export function VideoFeed({
             playsInline
           />
           
-          {/* Canvas Overlay for Face Detection */}
+          {/* Canvas Overlay for Face Detection - ONLY overlay, no double drawing */}
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 w-full h-full video-overlay pointer-events-none"
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              zIndex: 10,
+              backgroundColor: 'transparent'
+            }}
           />
           
           {/* Tech Overlay Elements */}
