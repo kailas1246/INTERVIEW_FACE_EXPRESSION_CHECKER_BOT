@@ -253,7 +253,7 @@ export function useFaceDetection(updateFrequency: number = 1) {
     return method1;
   }, []);
 
-  // Draw clean face detection overlay
+  // Draw face wireframe with detailed landmarks
   const drawFaceOverlay = useCallback((ctx: CanvasRenderingContext2D, detections: any[]) => {
     // IMPORTANT: Clear canvas completely to avoid double overlay
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -261,9 +261,9 @@ export function useFaceDetection(updateFrequency: number = 1) {
     detections.forEach((detection, index) => {
       const { x, y, width, height } = detection.detection.box;
       
-      // Draw simple face bounding box
+      // Draw face bounding box
       ctx.strokeStyle = '#00FFFF';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.strokeRect(x, y, width, height);
       
@@ -272,20 +272,19 @@ export function useFaceDetection(updateFrequency: number = 1) {
       ctx.font = 'bold 16px Arial';
       ctx.fillText(`FACE DETECTED: ${Math.round(detection.detection.score * 100)}%`, x, y - 15);
       
-      // Draw simple eye markers
-      const eyeY = y + height * 0.35;
-      const leftEyeX = x + width * 0.3;
-      const rightEyeX = x + width * 0.7;
+      // Generate mock facial landmarks for wireframe view
+      const landmarks = generateMockLandmarks(x, y, width, height);
       
-      ctx.fillStyle = '#FF0000';
-      ctx.fillRect(leftEyeX - 8, eyeY - 4, 16, 8);  // Left eye
-      ctx.fillRect(rightEyeX - 8, eyeY - 4, 16, 8); // Right eye
-      
-      // Draw mouth marker
-      const mouthY = y + height * 0.75;
-      const mouthX = x + width * 0.5;
+      // Draw landmark points
       ctx.fillStyle = '#00FF00';
-      ctx.fillRect(mouthX - 15, mouthY - 3, 30, 6);
+      landmarks.forEach((point: any) => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+      
+      // Draw face wireframe connections
+      drawFaceWireframe(ctx, landmarks);
       
       // Display dominant expression
       if (detection.expressions) {
@@ -300,6 +299,148 @@ export function useFaceDetection(updateFrequency: number = 1) {
         ctx.fillText(`Expression: ${maxExpression.toUpperCase()} (${confidence}%)`, x, y + height + 25);
       }
     });
+  }, []);
+
+  // Generate mock facial landmarks for wireframe display
+  const generateMockLandmarks = useCallback((x: number, y: number, width: number, height: number) => {
+    const landmarks = [];
+    
+    // Face outline (jaw line) - points 0-16
+    for (let i = 0; i <= 16; i++) {
+      const angle = (i / 16) * Math.PI; // Semi-circle for jaw
+      const px = x + width * 0.1 + (width * 0.8) * (i / 16);
+      const py = y + height * 0.2 + Math.sin(angle) * (height * 0.6);
+      landmarks.push({ x: px, y: py });
+    }
+    
+    // Eyebrows - points 17-26
+    for (let i = 17; i <= 21; i++) { // Right eyebrow
+      const px = x + width * (0.25 + (i - 17) * 0.05);
+      const py = y + height * 0.25;
+      landmarks.push({ x: px, y: py });
+    }
+    for (let i = 22; i <= 26; i++) { // Left eyebrow
+      const px = x + width * (0.55 + (i - 22) * 0.05);
+      const py = y + height * 0.25;
+      landmarks.push({ x: px, y: py });
+    }
+    
+    // Nose - points 27-35
+    for (let i = 27; i <= 35; i++) {
+      const px = x + width * 0.5 + (i - 31) * (width * 0.02);
+      const py = y + height * (0.3 + (i - 27) * 0.05);
+      landmarks.push({ x: px, y: py });
+    }
+    
+    // Eyes - points 36-47
+    // Left eye (36-41)
+    for (let i = 36; i <= 41; i++) {
+      const angle = ((i - 36) / 6) * 2 * Math.PI;
+      const px = x + width * 0.35 + Math.cos(angle) * (width * 0.06);
+      const py = y + height * 0.4 + Math.sin(angle) * (height * 0.03);
+      landmarks.push({ x: px, y: py });
+    }
+    // Right eye (42-47)
+    for (let i = 42; i <= 47; i++) {
+      const angle = ((i - 42) / 6) * 2 * Math.PI;
+      const px = x + width * 0.65 + Math.cos(angle) * (width * 0.06);
+      const py = y + height * 0.4 + Math.sin(angle) * (height * 0.03);
+      landmarks.push({ x: px, y: py });
+    }
+    
+    // Mouth - points 48-67
+    for (let i = 48; i <= 67; i++) {
+      const angle = ((i - 48) / 20) * 2 * Math.PI;
+      const px = x + width * 0.5 + Math.cos(angle) * (width * 0.08);
+      const py = y + height * 0.75 + Math.sin(angle) * (height * 0.04);
+      landmarks.push({ x: px, y: py });
+    }
+    
+    return landmarks;
+  }, []);
+
+  // Draw wireframe connections between landmarks
+  const drawFaceWireframe = useCallback((ctx: CanvasRenderingContext2D, landmarks: any[]) => {
+    ctx.lineWidth = 1;
+    
+    // Draw jaw line (points 0-16)
+    ctx.strokeStyle = '#FFFF00'; // Yellow
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      if (landmarks[i]) {
+        if (i === 0) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.stroke();
+    
+    // Draw eyebrows
+    ctx.strokeStyle = '#FF8800'; // Orange
+    // Right eyebrow (17-21)
+    ctx.beginPath();
+    for (let i = 17; i <= 21; i++) {
+      if (landmarks[i]) {
+        if (i === 17) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.stroke();
+    // Left eyebrow (22-26)
+    ctx.beginPath();
+    for (let i = 22; i <= 26; i++) {
+      if (landmarks[i]) {
+        if (i === 22) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.stroke();
+    
+    // Draw nose (27-35)
+    ctx.strokeStyle = '#FF00FF'; // Magenta
+    ctx.beginPath();
+    for (let i = 27; i <= 35; i++) {
+      if (landmarks[i]) {
+        if (i === 27) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.stroke();
+    
+    // Draw eyes
+    ctx.strokeStyle = '#FF0000'; // Red
+    // Left eye (36-41)
+    ctx.beginPath();
+    for (let i = 36; i <= 41; i++) {
+      if (landmarks[i]) {
+        if (i === 36) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.closePath();
+    ctx.stroke();
+    // Right eye (42-47)
+    ctx.beginPath();
+    for (let i = 42; i <= 47; i++) {
+      if (landmarks[i]) {
+        if (i === 42) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.closePath();
+    ctx.stroke();
+    
+    // Draw mouth (48-67)
+    ctx.strokeStyle = '#00FFFF'; // Cyan
+    ctx.beginPath();
+    for (let i = 48; i <= 67; i++) {
+      if (landmarks[i]) {
+        if (i === 48) ctx.moveTo(landmarks[i].x, landmarks[i].y);
+        else ctx.lineTo(landmarks[i].x, landmarks[i].y);
+      }
+    }
+    ctx.closePath();
+    ctx.stroke();
   }, []);
 
     const analyzeFrame = useCallback(async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
@@ -338,7 +479,7 @@ export function useFaceDetection(updateFrequency: number = 1) {
          ctx.strokeRect(centerX - 120, centerY - 40, 240, 80);
          
          // Main message
-         ctx.fillStyle = '#FF6B6B';
+         ctx.fillStyle = '#FF4500'; // Orange-red color
          ctx.font = 'bold 18px Arial';
          ctx.textAlign = 'center';
          ctx.fillText('NO FACE DETECTED', centerX, centerY - 10);
