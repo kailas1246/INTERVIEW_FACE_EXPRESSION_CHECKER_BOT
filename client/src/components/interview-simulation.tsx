@@ -127,47 +127,48 @@ export function InterviewSimulation({ className }: InterviewSimulationProps) {
                 </Card>
               )}
 
-              {/* Timer */}
+              {/* Timer and Controls */}
               {isWaitingForAnswer && (
                 <Card className="border-orange-500/30 bg-orange-900/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center justify-center">
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-orange-400" />
                         <span className="text-orange-400 font-medium">
                           Time Remaining: {formatTime(timeRemaining)}
                         </span>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={startAnswering}
-                          disabled={isListening}
-                          variant="outline"
-                          size="sm"
-                          className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
-                        >
-                          {isListening ? (
-                            <>
-                              <MicOff className="h-4 w-4 mr-2" />
-                              Listening...
-                            </>
-                          ) : (
-                            <>
-                              <Mic className="h-4 w-4 mr-2" />
-                              Start Answer
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          onClick={skipQuestion}
-                          variant="outline"
-                          size="sm"
-                          className="border-gray-500/50 text-gray-400 hover:bg-gray-500/10"
-                        >
-                          <SkipForward className="h-4 w-4 mr-2" />
-                          Skip
-                        </Button>
-                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3 justify-center">
+                      <Button
+                        onClick={startAnswering}
+                        disabled={isListening}
+                        variant="outline"
+                        size="sm"
+                        className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 flex-1 max-w-[120px]"
+                      >
+                        {isListening ? (
+                          <>
+                            <MicOff className="h-4 w-4 mr-2" />
+                            Listening...
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="h-4 w-4 mr-2" />
+                            Answer
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={skipQuestion}
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-500/50 text-gray-400 hover:bg-gray-500/10 flex-1 max-w-[120px]"
+                      >
+                        <SkipForward className="h-4 w-4 mr-2" />
+                        Skip
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -202,13 +203,15 @@ export function InterviewSimulation({ className }: InterviewSimulationProps) {
                       className="min-h-[100px] bg-gray-900/50 border-gray-700 text-white placeholder:text-gray-500"
                     />
                     
-                    <Button
-                      onClick={submitAnswer}
-                      disabled={(!transcript && !currentAnswer.trim()) || isSpeaking}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Submit Answer
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button
+                        onClick={submitAnswer}
+                        disabled={(!transcript && !currentAnswer.trim()) || isSpeaking}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2"
+                      >
+                        Submit Answer
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               )}
