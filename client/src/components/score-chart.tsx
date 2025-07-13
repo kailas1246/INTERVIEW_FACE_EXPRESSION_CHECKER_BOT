@@ -60,6 +60,37 @@ export function ScoreChart({
   const confidencePath = generateSVGPath(filteredData, 'confidence');
   const eyeContactPath = generateSVGPath(filteredData, 'eyeContact');
 
+  const exportData = () => {
+    const exportObj = {
+      sessionData: {
+        timestamp: new Date().toISOString(),
+        duration: `${Math.floor(dataPoints.length / 60)}:${(dataPoints.length % 60).toString().padStart(2, '0')}`,
+        totalDataPoints: dataPoints.length
+      },
+      confidenceScores: filteredData.map(point => ({
+        timestamp: new Date(point.timestamp).toISOString(),
+        confidence: point.confidence,
+        eyeContact: point.eyeContact
+      })),
+      statistics: {
+        averageConfidence: filteredData.length > 0 ? Math.round(filteredData.reduce((sum, p) => sum + p.confidence, 0) / filteredData.length) : 0,
+        maxConfidence: filteredData.length > 0 ? Math.max(...filteredData.map(p => p.confidence)) : 0,
+        minConfidence: filteredData.length > 0 ? Math.min(...filteredData.map(p => p.confidence)) : 0,
+        averageEyeContact: filteredData.length > 0 ? Math.round(filteredData.reduce((sum, p) => sum + p.eyeContact, 0) / filteredData.length) : 0
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `interview-analysis-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="tech-border rounded-xl mb-6">
       <div className="tech-border-content rounded-xl p-6">
@@ -78,9 +109,11 @@ export function ScoreChart({
               <option value="60">Last hour</option>
             </select>
             <Button
+              onClick={exportData}
               variant="outline"
               size="icon"
               className="tech-border rounded-lg hover:scale-105 transition-transform border-0"
+              title="Export timeline data"
             >
               <div className="tech-border-content p-2 rounded-lg">
                 <Download className="w-4 h-4 text-gray-400 hover:text-cyan-400 transition-colors" />

@@ -43,7 +43,9 @@ export function getExpressionEmoji(expression: string): string {
     fearful: '😨',
     disgusted: '🤢',
     surprised: '😲',
-    neutral: '😐'
+    neutral: '😐',
+    focused: '🧐',
+    confident: '😎'
   };
   
   return emojiMap[expression] || '😐';

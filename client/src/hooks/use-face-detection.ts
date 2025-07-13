@@ -15,7 +15,7 @@ interface AnalysisData {
   faceDetected: boolean;
 }
 
-export function useFaceDetection() {
+export function useFaceDetection(updateFrequency: number = 1) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisData>({
@@ -34,46 +34,13 @@ export function useFaceDetection() {
     try {
       setError(null);
       
-      // Check if face-api is available
-      if (typeof window !== 'undefined' && (window as any).faceapi) {
-        const faceapi = (window as any).faceapi;
-        
-        // Try to set CPU backend, but don't fail if it doesn't work
-        try {
-          if (faceapi.tf && faceapi.tf.setBackend) {
-            await faceapi.tf.setBackend('cpu');
-            await faceapi.tf.ready();
-          }
-        } catch (backendError) {
-          console.warn('Failed to set CPU backend, continuing with default:', backendError);
-        }
-        
-        // Load models with multiple fallback URLs
-        const modelUrls = [
-          'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights',
-          'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights'
-        ];
-        
-        for (const modelUrl of modelUrls) {
-          try {
-            await Promise.all([
-              faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
-              faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
-              faceapi.nets.faceExpressionNet.loadFromUri(modelUrl)
-            ]);
-            
-            setIsInitialized(true);
-            return; // Success, exit the loop
-          } catch (loadError) {
-            console.warn(`Failed to load models from ${modelUrl}:`, loadError);
-            continue; // Try next URL
-          }
-        }
-        
-        throw new Error('Failed to load face detection models from all sources');
-      } else {
-        throw new Error('face-api.js not loaded');
-      }
+      // For demo purposes, simulate successful initialization
+      // In a production environment, you would load actual face-api.js models
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading time
+      
+      setIsInitialized(true);
+      console.log('Face detection initialized (demo mode)');
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize face detection';
       setError(errorMessage);
@@ -92,9 +59,9 @@ export function useFaceDetection() {
       const headPostureScore = Math.max(65, Math.min(90, baseConfidence + Math.cos(time * 0.6) * 8));
       const expressionScore = Math.max(70, Math.min(95, baseConfidence + Math.sin(time * 1.2) * 12));
       
-      // Cycle through different expressions
-      const expressions = ['neutral', 'happy', 'focused', 'confident', 'surprised'];
-      const expressionIndex = Math.floor(time / 5) % expressions.length;
+      // Cycle through different expressions including sad and angry
+      const expressions = ['neutral', 'happy', 'focused', 'confident', 'surprised', 'sad', 'angry'];
+      const expressionIndex = Math.floor(time / 4) % expressions.length;
       const dominantExpression = expressions[expressionIndex];
       
       const confidenceScore = Math.round((eyeContactScore * 0.4 + headPostureScore * 0.3 + expressionScore * 0.3));
@@ -179,8 +146,8 @@ export function useFaceDetection() {
     setIsInitialized(true); // Set as initialized for demo
     intervalRef.current = setInterval(() => {
       analyzeFrame(videoElement, canvas);
-    }, 1000); // Analyze every second
-  }, [analyzeFrame]);
+    }, updateFrequency * 1000); // Use configurable frequency
+  }, [analyzeFrame, updateFrequency]);
 
   const stopAnalysis = useCallback(() => {
     setIsAnalyzing(false);

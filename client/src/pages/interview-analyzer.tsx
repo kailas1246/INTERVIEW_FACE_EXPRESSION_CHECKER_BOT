@@ -1,7 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Settings, Bot } from 'lucide-react';
 import { useWebcam } from '@/hooks/use-webcam';
 import { useFaceDetection } from '@/hooks/use-face-detection';
+import { useSystemConfig } from '@/hooks/use-system-config';
+import { usePerformanceMonitor } from '@/hooks/use-performance-monitor';
+import { useDataExport } from '@/hooks/use-data-export';
 import { VideoFeed } from '@/components/video-feed';
 import { ConfidenceScore } from '@/components/confidence-score';
 import { ExpressionAnalysis } from '@/components/expression-analysis';
@@ -13,7 +16,15 @@ import { useToast } from '@/hooks/use-toast';
 export default function InterviewAnalyzer() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [sessionData, setSessionData] = useState<any[]>([]);
   
+  const {
+    config,
+    updateDetectionSensitivity,
+    updateFrequency,
+    toggleAudioFeedback
+  } = useSystemConfig();
+
   const {
     videoRef,
     isActive: webcamActive,
@@ -32,6 +43,14 @@ export default function InterviewAnalyzer() {
     stopAnalysis
   } = useFaceDetection();
 
+  const performanceMetrics = usePerformanceMonitor(isAnalyzing);
+
+  const {
+    exportSessionData,
+    generateReport,
+    shareResults
+  } = useDataExport();
+
   const [interviewQuestions] = useState([
     "Tell me about yourself and your background.",
     "What are your greatest strengths?",
@@ -44,6 +63,17 @@ export default function InterviewAnalyzer() {
   ]);
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  // Track session data for exports
+  useEffect(() => {
+    if (isAnalyzing && analysisData.faceDetected) {
+      const newDataPoint = {
+        ...analysisData,
+        timestamp: Date.now()
+      };
+      setSessionData(prev => [...prev, newDataPoint]);
+    }
+  }, [isAnalyzing, analysisData]);
 
   const handleStartCamera = async () => {
     try {
@@ -286,29 +316,41 @@ export default function InterviewAnalyzer() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">Detection Sensitivity</span>
-                  <select className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm focus:border-cyan-400 focus:outline-none">
-                    <option>High</option>
-                    <option>Medium</option>
-                    <option>Low</option>
+                  <select 
+                    value={config.detectionSensitivity} 
+                    onChange={(e) => updateDetectionSensitivity(e.target.value as any)}
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm focus:border-cyan-400 focus:outline-none"
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
                   </select>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">Update Frequency</span>
-                  <select className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm focus:border-cyan-400 focus:outline-none">
-                    <option>1 second</option>
-                    <option>2 seconds</option>
-                    <option>5 seconds</option>
+                  <select 
+                    value={config.updateFrequency} 
+                    onChange={(e) => updateFrequency(Number(e.target.value) as any)}
+                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm focus:border-cyan-400 focus:outline-none"
+                  >
+                    <option value={1}>1 second</option>
+                    <option value={2}>2 seconds</option>
+                    <option value={5}>5 seconds</option>
                   </select>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">Audio Feedback</span>
                   <Button
+                    onClick={toggleAudioFeedback}
                     size="sm"
-                    className="bg-green-500 hover:bg-green-600 text-black font-semibold"
+                    className={`font-semibold ${config.audioFeedback 
+                      ? 'bg-green-500 hover:bg-green-600 text-black' 
+                      : 'bg-gray-600 hover:bg-gray-700 text-white'
+                    }`}
                   >
-                    ON
+                    {config.audioFeedback ? 'ON' : 'OFF'}
                   </Button>
                 </div>
               </div>
@@ -323,20 +365,28 @@ export default function InterviewAnalyzer() {
               </h3>
               
               <div className="space-y-3">
-                <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold">
+                <Button 
+                  onClick={() => exportSessionData(sessionData, { format: 'json', includeCharts: true, includeStatistics: true })}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold"
+                  disabled={sessionData.length === 0}
+                >
                   Export Session Data
                 </Button>
                 
                 <Button
+                  onClick={() => generateReport(sessionData)}
                   variant="outline"
                   className="w-full border-gray-600 hover:border-cyan-400 text-gray-400 hover:text-cyan-400 font-semibold"
+                  disabled={sessionData.length === 0}
                 >
                   Generate Report
                 </Button>
                 
                 <Button
+                  onClick={() => shareResults(sessionData)}
                   variant="outline"
                   className="w-full border-gray-600 hover:border-cyan-400 text-gray-400 hover:text-cyan-400 font-semibold"
+                  disabled={sessionData.length === 0}
                 >
                   Share Results
                 </Button>
@@ -356,9 +406,14 @@ export default function InterviewAnalyzer() {
                   <span className="text-sm text-gray-400">CPU Usage</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-12 h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-yellow-400 rounded-full" style={{ width: '45%' }} />
+                      <div 
+                        className="h-full bg-yellow-400 rounded-full transition-all duration-1000" 
+                        style={{ width: `${Math.round(performanceMetrics.cpuUsage)}%` }} 
+                      />
                     </div>
-                    <span className="text-sm font-semibold text-yellow-400">45%</span>
+                    <span className="text-sm font-semibold text-yellow-400">
+                      {Math.round(performanceMetrics.cpuUsage)}%
+                    </span>
                   </div>
                 </div>
                 
@@ -366,20 +421,29 @@ export default function InterviewAnalyzer() {
                   <span className="text-sm text-gray-400">Memory</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-12 h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-400 rounded-full" style={{ width: '62%' }} />
+                      <div 
+                        className="h-full bg-blue-400 rounded-full transition-all duration-1000" 
+                        style={{ width: `${Math.round(performanceMetrics.memoryUsage)}%` }} 
+                      />
                     </div>
-                    <span className="text-sm font-semibold text-blue-400">62%</span>
+                    <span className="text-sm font-semibold text-blue-400">
+                      {Math.round(performanceMetrics.memoryUsage)}%
+                    </span>
                   </div>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">FPS</span>
-                  <span className="text-sm font-semibold text-green-400">30</span>
+                  <span className="text-sm font-semibold text-green-400">
+                    {Math.round(performanceMetrics.fps)}
+                  </span>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">Latency</span>
-                  <span className="text-sm font-semibold text-cyan-400">23ms</span>
+                  <span className="text-sm font-semibold text-cyan-400">
+                    {Math.round(performanceMetrics.latency)}ms
+                  </span>
                 </div>
               </div>
             </div>
