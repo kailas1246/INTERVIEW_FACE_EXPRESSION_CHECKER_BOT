@@ -162,7 +162,8 @@ export function useFaceDetection(updateFrequency: number = 1) {
     });
     
     const skinRatio = skinPixelCount / totalPixels;
-    return skinRatio > 0.08; // Lower threshold for better detection
+    console.log('Skin detection ratio:', skinRatio);
+    return skinRatio > 0.05; // Even lower threshold for better detection
   }, []);
 
   // Check if RGB values represent skin tone (more inclusive)
@@ -222,7 +223,8 @@ export function useFaceDetection(updateFrequency: number = 1) {
     }
     
     const avgVariation = brightnessVariation / pixelCount;
-    return avgVariation > 15; // Indicates face-like texture variation
+    console.log('Motion detection variation:', avgVariation);
+    return avgVariation > 10; // Lower threshold - indicates face-like texture variation
   }, []);
 
   // Detect brightness variation that might indicate a face
@@ -256,7 +258,8 @@ export function useFaceDetection(updateFrequency: number = 1) {
     const lightRatio = lightPixels / totalPixels;
     const midRatio = midPixels / totalPixels;
     
-    return midRatio > 0.3 && (darkRatio > 0.1 || lightRatio > 0.1);
+    console.log('Brightness detection:', { darkRatio, lightRatio, midRatio });
+    return midRatio > 0.2 && (darkRatio > 0.05 || lightRatio > 0.05);
   }, []);
 
   const analyzeFrame = useCallback(async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
@@ -270,18 +273,11 @@ export function useFaceDetection(updateFrequency: number = 1) {
 
       // FIRST: Confirm if a face is actually present
       const isFaceDetected = await detectFaceInFrame(videoElement, canvas);
-      
-      // TEMPORARY: Debug mode - check if video is showing any content
-      const hasVideoContent = videoElement.videoWidth > 0 && videoElement.videoHeight > 0 && 
-                             !videoElement.paused && !videoElement.ended;
-      
-      // Use detected face OR if we have video content (for easier testing)
-      const finalDetection = isFaceDetected || hasVideoContent;
 
       let detections: any[] = [];
       
-             // ONLY analyze if face is confirmed to be present
-       if (finalDetection) {
+                     // ONLY analyze if face is confirmed to be present
+        if (isFaceDetected) {
         // Face confirmed - proceed with analysis
         detections = [{}]; // Mock detection data
         
@@ -348,7 +344,8 @@ export function useFaceDetection(updateFrequency: number = 1) {
             // Show video status
             ctx.fillStyle = '#888888';
             ctx.font = '9px Arial';
-            const videoStatus = hasVideoContent ? 'Video: Active' : 'Video: Inactive';
+            const videoActive = videoElement.videoWidth > 0 && !videoElement.paused;
+            const videoStatus = videoActive ? 'Video: Active' : 'Video: Inactive';
             ctx.fillText(videoStatus, canvas.width / 2 - 30, canvas.height / 2 + 35);
          }
        }
