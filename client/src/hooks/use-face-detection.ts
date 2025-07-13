@@ -49,8 +49,8 @@ export function useFaceDetection(updateFrequency: number = 1) {
   }, []);
 
   const calculateConfidence = useCallback((detections: any[] = []): AnalysisData => {
-    // For demo purposes, generate realistic mock data when face is detected
-    if (detections.length > 0 || true) { // Mock face detection as always successful
+    // Only generate data when face is actually detected
+    if (detections.length > 0) {
       const time = Date.now() / 1000;
       
       // Generate varying but realistic confidence scores
@@ -86,60 +86,137 @@ export function useFaceDetection(updateFrequency: number = 1) {
     };
   }, []);
 
+  const detectFaceInFrame = useCallback(async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement): Promise<boolean> => {
+    if (!videoElement || !canvas) return false;
+
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+
+      // Draw current video frame to canvas for analysis
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      
+      // Get image data from canvas
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // Simple face detection algorithm based on skin tone detection
+      // This is a mock implementation - in production use face-api.js
+      let skinPixelCount = 0;
+      let totalPixels = 0;
+      
+      // Sample pixels in the center region where face would typically be
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const sampleRadius = Math.min(canvas.width, canvas.height) / 4;
+      
+      for (let y = centerY - sampleRadius; y < centerY + sampleRadius; y += 4) {
+        for (let x = centerX - sampleRadius; x < centerX + sampleRadius; x += 4) {
+          if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+            const index = (y * canvas.width + x) * 4;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            
+            // Simple skin tone detection (very basic)
+            if (r > 95 && g > 40 && b > 20 && 
+                Math.max(r, g, b) - Math.min(r, g, b) > 15 &&
+                Math.abs(r - g) > 15 && r > g && r > b) {
+              skinPixelCount++;
+            }
+            totalPixels++;
+          }
+        }
+      }
+      
+      // If more than 20% of sampled pixels are skin-like, consider face detected
+      const skinRatio = skinPixelCount / totalPixels;
+      return skinRatio > 0.20;
+      
+    } catch (err) {
+      console.error('Face detection error:', err);
+      return false;
+    }
+  }, []);
+
   const analyzeFrame = useCallback(async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!videoElement || !canvas) return;
 
     try {
-      // Clear canvas and draw mock overlay
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw mock face detection box
-        ctx.strokeStyle = '#00FFFF';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const boxWidth = 200;
-        const boxHeight = 250;
-        
-        ctx.strokeRect(
-          centerX - boxWidth/2,
-          centerY - boxHeight/2,
-          boxWidth,
-          boxHeight
-        );
-        
-        // Draw mock landmarks points
-        ctx.fillStyle = '#00FFFF';
-        const points = [
-          // Eyes
-          { x: centerX - 30, y: centerY - 40 },
-          { x: centerX + 30, y: centerY - 40 },
-          // Nose
-          { x: centerX, y: centerY },
-          // Mouth corners
-          { x: centerX - 20, y: centerY + 40 },
-          { x: centerX + 20, y: centerY + 40 },
-        ];
-        
-        points.forEach(point => {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
-          ctx.fill();
-        });
       }
 
-      // Update analysis data with mock detections
-      const analysisResult = calculateConfidence([{}]); // Pass mock detection
+      // FIRST: Confirm if a face is actually present
+      const isFaceDetected = await detectFaceInFrame(videoElement, canvas);
+
+      let detections: any[] = [];
+      
+      // ONLY analyze if face is confirmed to be present
+      if (isFaceDetected) {
+        // Face confirmed - proceed with analysis
+        detections = [{}]; // Mock detection data
+        
+        // Draw face detection box only when face is actually detected
+        if (ctx) {
+          ctx.strokeStyle = '#00FFFF';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const boxWidth = 200;
+          const boxHeight = 250;
+          
+          ctx.strokeRect(
+            centerX - boxWidth/2,
+            centerY - boxHeight/2,
+            boxWidth,
+            boxHeight
+          );
+          
+          // Draw landmarks points
+          ctx.fillStyle = '#00FFFF';
+          const points = [
+            // Eyes
+            { x: centerX - 30, y: centerY - 40 },
+            { x: centerX + 30, y: centerY - 40 },
+            // Nose
+            { x: centerX, y: centerY },
+            // Mouth corners
+            { x: centerX - 20, y: centerY + 40 },
+            { x: centerX + 20, y: centerY + 40 },
+          ];
+          
+          points.forEach(point => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+          });
+          
+          // Add "FACE DETECTED" text
+          ctx.fillStyle = '#00FFFF';
+          ctx.font = '12px Arial';
+          ctx.fillText('FACE DETECTED', centerX - 50, centerY - 140);
+        }
+      } else {
+        // No face detected - clear the canvas and show message
+        if (ctx) {
+          ctx.fillStyle = '#FF6B6B';
+          ctx.font = '16px Arial';
+          ctx.fillText('NO FACE DETECTED', canvas.width / 2 - 80, canvas.height / 2);
+        }
+      }
+
+      // Update analysis data - only process if face is confirmed
+      const analysisResult = calculateConfidence(detections);
       setAnalysisData(analysisResult);
       
     } catch (err) {
       console.error('Face detection error:', err);
     }
-  }, [calculateConfidence]);
+  }, [calculateConfidence, detectFaceInFrame]);
 
   const startAnalysis = useCallback((videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     setIsAnalyzing(true);
