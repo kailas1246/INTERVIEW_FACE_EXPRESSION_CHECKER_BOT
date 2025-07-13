@@ -218,6 +218,46 @@ If you encounter issues:
 
 For the best experience, use Chrome or Firefox with a good quality webcam and microphone.
 
+## Deployment
+
+For production deployment, see [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying to:
+
+- **Vercel** (Recommended for full-stack)
+- **Netlify** (Frontend-focused)
+- **Render** (Full-stack with backend support)
+- **Railway** (Simple full-stack deployment)
+- **Docker** (Containerized deployment)
+
+### Quick Deploy Commands
+
+```bash
+# Deploy to Vercel
+./deploy.sh vercel
+
+# Deploy to Netlify
+./deploy.sh netlify
+
+# Deploy to Railway
+./deploy.sh railway
+
+# Build and preview locally
+npm run build && npm start
+```
+
+### Manual Package.json Updates for Deployment
+
+Add these scripts to your `package.json` if needed:
+
+```json
+{
+  "scripts": {
+    "preview": "npm run build && npm start",
+    "deploy:vercel": "vercel --prod",
+    "deploy:netlify": "netlify deploy --prod --dir=dist/public"
+  }
+}
+```
+
 ---
 
 **Version**: 2.1  
