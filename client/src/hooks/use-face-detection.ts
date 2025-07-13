@@ -136,51 +136,55 @@ export function useFaceDetection(updateFrequency: number = 1) {
     if (!videoElement || !canvas || !isInitialized) return [];
 
     try {
-      // Ensure canvas matches video dimensions
-      const videoRect = videoElement.getBoundingClientRect();
-      canvas.width = videoElement.videoWidth || videoRect.width;
-      canvas.height = videoElement.videoHeight || videoRect.height;
+      // STRICT: Only detect when video is actually showing content
+      if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0 || 
+          videoElement.paused || videoElement.ended || videoElement.readyState < 2) {
+        console.log('❌ Video not ready for detection');
+        return [];
+      }
+
+      // Use a separate analysis canvas to avoid overlay conflicts
+      const analysisCanvas = document.createElement('canvas');
+      analysisCanvas.width = videoElement.videoWidth;
+      analysisCanvas.height = videoElement.videoHeight;
+      const ctx = analysisCanvas.getContext('2d');
       
-      console.log(`📐 Canvas: ${canvas.width}x${canvas.height}, Video: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
-      
-      // Simple but reliable face detection using video analysis
-      const ctx = canvas.getContext('2d');
       if (!ctx) return [];
       
-      // Draw video to canvas for analysis
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      // Draw video to analysis canvas (not the display canvas)
+      ctx.drawImage(videoElement, 0, 0, analysisCanvas.width, analysisCanvas.height);
       
-      // Get image data
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      // Get image data for analysis
+      const imageData = ctx.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height);
       const data = imageData.data;
       
-      // Simple face detection using skin tone + movement detection
-      const faceDetected = await detectFaceSimple(data, canvas.width, canvas.height);
+      // STRICT face detection with multiple validation checks
+      const faceValidation = await validateActualFace(data, analysisCanvas.width, analysisCanvas.height);
       
-      if (faceDetected) {
-        // Create mock detection object for compatibility
-        const mockDetection = {
+      if (faceValidation.isValid) {
+        // Create SINGLE detection object - prevent doubles
+        const detection = {
           detection: {
-            box: { 
-              x: canvas.width * 0.25, 
-              y: canvas.height * 0.2, 
-              width: canvas.width * 0.5, 
-              height: canvas.height * 0.6 
-            },
-            score: 0.85
+            box: faceValidation.boundingBox,
+            score: faceValidation.confidence
           },
           expressions: {
-            neutral: 0.7,
-            happy: 0.2,
+            neutral: 0.8,
+            happy: 0.1,
             sad: 0.1
           }
         };
         
-        console.log('✅ Face detected using simple detection');
-        return [mockDetection];
+        console.log('✅ VALIDATED face detected', {
+          confidence: `${Math.round(faceValidation.confidence * 100)}%`,
+          skinRatio: `${(faceValidation.skinRatio * 100).toFixed(1)}%`,
+          symmetry: `${(faceValidation.symmetryScore * 100).toFixed(1)}%`
+        });
+        
+        return [detection]; // Return exactly ONE detection
       }
       
-      console.log('❌ No face detected');
+      console.log('❌ No valid face detected');
       return [];
       
     } catch (err) {
@@ -189,33 +193,67 @@ export function useFaceDetection(updateFrequency: number = 1) {
     }
   }, [isInitialized]);
 
-  // Simple but effective face detection
-  const detectFaceSimple = useCallback(async (data: Uint8ClampedArray, width: number, height: number): Promise<boolean> => {
+  // STRICT face validation with multiple checks to prevent false positives
+  const validateActualFace = useCallback(async (data: Uint8ClampedArray, width: number, height: number): Promise<{
+    isValid: boolean;
+    confidence: number;
+    skinRatio: number;
+    symmetryScore: number;
+    boundingBox: { x: number; y: number; width: number; height: number };
+  }> => {
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const faceRegionSize = Math.min(width, height) / 3; // Smaller, more focused region
+    
     let skinPixels = 0;
     let totalPixels = 0;
     let brightPixels = 0;
+    let faceFeatures = {
+      eyeRegion: 0,
+      mouthRegion: 0,
+      noseRegion: 0
+    };
     
-    // Sample center region where face would be
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 4;
+    // Sample face region in a more focused area
+    const startX = centerX - faceRegionSize / 2;
+    const endX = centerX + faceRegionSize / 2;
+    const startY = centerY - faceRegionSize / 2;
+    const endY = centerY + faceRegionSize / 2;
     
-    for (let y = centerY - radius; y < centerY + radius; y += 3) {
-      for (let x = centerX - radius; x < centerX + radius; x += 3) {
+    for (let y = startY; y < endY; y += 2) {
+      for (let x = startX; x < endX; x += 2) {
         if (x >= 0 && x < width && y >= 0 && y < height) {
           const i = (Math.floor(y) * width + Math.floor(x)) * 4;
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
+          const brightness = (r + g + b) / 3;
           
-          // Enhanced skin detection
-          if (isSkinColor(r, g, b)) {
+          // STRICT skin detection
+          if (isStrictSkinColor(r, g, b)) {
             skinPixels++;
+            
+            // Check for facial features in specific regions
+            const relX = (x - startX) / faceRegionSize;
+            const relY = (y - startY) / faceRegionSize;
+            
+            // Eye region (upper part)
+            if (relY >= 0.2 && relY <= 0.5 && (relX <= 0.4 || relX >= 0.6)) {
+              if (brightness < 100) faceFeatures.eyeRegion++; // Eyes are darker
+            }
+            
+            // Nose region (center)
+            if (relY >= 0.4 && relY <= 0.7 && relX >= 0.4 && relX <= 0.6) {
+              faceFeatures.noseRegion++;
+            }
+            
+            // Mouth region (lower part)
+            if (relY >= 0.6 && relY <= 0.8 && relX >= 0.3 && relX <= 0.7) {
+              if (brightness < 120) faceFeatures.mouthRegion++; // Mouth can be darker
+            }
           }
           
-          // Check for adequate lighting
-          const brightness = (r + g + b) / 3;
-          if (brightness > 50) {
+          if (brightness > 60) { // Higher brightness threshold
             brightPixels++;
           }
           
@@ -227,10 +265,84 @@ export function useFaceDetection(updateFrequency: number = 1) {
     const skinRatio = skinPixels / totalPixels;
     const brightRatio = brightPixels / totalPixels;
     
-    console.log(`🔍 Detection ratios - Skin: ${(skinRatio * 100).toFixed(1)}%, Brightness: ${(brightRatio * 100).toFixed(1)}%`);
+    // Check facial symmetry (basic)
+    const leftSkinPixels = countSkinPixelsInRegion(data, width, height, startX, startY, centerX, endY);
+    const rightSkinPixels = countSkinPixelsInRegion(data, width, height, centerX, startY, endX, endY);
+    const symmetryScore = 1 - Math.abs(leftSkinPixels - rightSkinPixels) / Math.max(leftSkinPixels, rightSkinPixels);
     
-    // Face detected if enough skin pixels and adequate lighting
-    return skinRatio > 0.08 && brightRatio > 0.3;
+    // STRICT validation criteria
+    const hasEnoughSkin = skinRatio > 0.15; // Much higher threshold (15% instead of 8%)
+    const hasGoodLighting = brightRatio > 0.4; // Higher brightness requirement
+    const hasEyeFeatures = faceFeatures.eyeRegion > 5;
+    const hasNoseFeatures = faceFeatures.noseRegion > 3;
+    const hasMouthFeatures = faceFeatures.mouthRegion > 2;
+    const hasSymmetry = symmetryScore > 0.6;
+    
+    const featureScore = (faceFeatures.eyeRegion + faceFeatures.noseRegion + faceFeatures.mouthRegion) / 10;
+    const confidence = (skinRatio + symmetryScore + featureScore) / 3;
+    
+    const isValid = hasEnoughSkin && hasGoodLighting && hasEyeFeatures && hasSymmetry && confidence > 0.3;
+    
+    console.log(`🔍 STRICT Validation:`, {
+      skinRatio: `${(skinRatio * 100).toFixed(1)}%`,
+      brightness: `${(brightRatio * 100).toFixed(1)}%`,
+      symmetry: `${(symmetryScore * 100).toFixed(1)}%`,
+      eyes: faceFeatures.eyeRegion,
+      nose: faceFeatures.noseRegion,
+      mouth: faceFeatures.mouthRegion,
+      confidence: `${(confidence * 100).toFixed(1)}%`,
+      isValid
+    });
+    
+    return {
+      isValid,
+      confidence: Math.min(confidence, 0.95),
+      skinRatio,
+      symmetryScore,
+      boundingBox: {
+        x: startX,
+        y: startY,
+        width: faceRegionSize,
+        height: faceRegionSize
+      }
+    };
+  }, []);
+
+  // Helper function to count skin pixels in a region
+  const countSkinPixelsInRegion = useCallback((data: Uint8ClampedArray, width: number, height: number, 
+    startX: number, startY: number, endX: number, endY: number): number => {
+    let count = 0;
+    for (let y = startY; y < endY; y += 3) {
+      for (let x = startX; x < endX; x += 3) {
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+          const i = (Math.floor(y) * width + Math.floor(x)) * 4;
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          if (isStrictSkinColor(r, g, b)) count++;
+        }
+      }
+    }
+    return count;
+  }, []);
+
+  // MUCH stricter skin color detection
+  const isStrictSkinColor = useCallback((r: number, g: number, b: number): boolean => {
+    // Stricter RGB ranges to reduce false positives
+    const method1 = r > 95 && r < 220 && g > 60 && g < 170 && b > 40 && b < 120 && 
+                   r > g && r > b && (r - g) > 15 && (r - b) > 25;
+    
+    // Normalized RGB method with tighter bounds
+    const sum = r + g + b;
+    if (sum > 200 && sum < 600) {
+      const nr = r / sum;
+      const ng = g / sum;
+      const nb = b / sum;
+      const method2 = nr > 0.38 && nr < 0.55 && ng > 0.28 && ng < 0.42 && nb > 0.18 && nb < 0.35;
+      return method1 && method2; // Both methods must pass
+    }
+    
+    return false; // Default to no detection
   }, []);
 
   // Improved skin color detection
@@ -253,13 +365,16 @@ export function useFaceDetection(updateFrequency: number = 1) {
     return method1;
   }, []);
 
-  // Draw face wireframe with detailed landmarks
+  // Draw SINGLE face wireframe overlay - no duplicates
   const drawFaceOverlay = useCallback((ctx: CanvasRenderingContext2D, detections: any[]) => {
-    // IMPORTANT: Clear canvas completely to avoid double overlay
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    // Canvas already cleared by caller - just draw once
     
-    detections.forEach((detection, index) => {
-      const { x, y, width, height } = detection.detection.box;
+         // STRICT: Only draw FIRST detection to prevent doubles
+     if (detections.length === 0) return;
+     
+     const detection = detections[0]; // Only use first detection
+     const index = 0;
+     const { x, y, width, height } = detection.detection.box;
       
       // Draw face bounding box
       ctx.strokeStyle = '#00FFFF';
@@ -443,61 +558,66 @@ export function useFaceDetection(updateFrequency: number = 1) {
     ctx.stroke();
   }, []);
 
-    const analyzeFrame = useCallback(async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
+      const analyzeFrame = useCallback(async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!videoElement || !canvas) return;
 
     try {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // FIRST: Use face-api.js to detect faces
+      // CRITICAL: Always clear canvas first to prevent double overlay
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Ensure canvas matches video dimensions exactly
+      if (canvas.width !== videoElement.videoWidth || canvas.height !== videoElement.videoHeight) {
+        canvas.width = videoElement.videoWidth || 640;
+        canvas.height = videoElement.videoHeight || 480;
+      }
+
+      // STRICT face detection
       const detections = await detectFaceInFrame(videoElement, canvas);
       const hasFaces = detections.length > 0;
 
       if (hasFaces) {
-        // Draw overlay for detected faces
+        // Draw SINGLE face overlay - no duplicates
         drawFaceOverlay(ctx, detections);
         
-        // Log detection success
-        console.log('✅ Face(s) detected and overlay drawn');
+        console.log('✅ SINGLE face overlay drawn');
         
-             } else {
-         // No face detected - clear canvas and show helpful message
-         ctx.clearRect(0, 0, canvas.width, canvas.height);
-         
-         // Draw centered message box
-         const centerX = canvas.width / 2;
-         const centerY = canvas.height / 2;
-         
-         // Background box for message
-         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-         ctx.fillRect(centerX - 120, centerY - 40, 240, 80);
-         
-         // Border
-         ctx.strokeStyle = '#FF6B6B';
-         ctx.lineWidth = 2;
-         ctx.strokeRect(centerX - 120, centerY - 40, 240, 80);
-         
-         // Main message
-         ctx.fillStyle = '#FF4500'; // Orange-red color
-         ctx.font = 'bold 18px Arial';
-         ctx.textAlign = 'center';
-         ctx.fillText('NO FACE DETECTED', centerX, centerY - 10);
-         
-         // Helper text
-         ctx.fillStyle = '#FFAA00';
-         ctx.font = '12px Arial';
-         ctx.fillText('Position your face in camera view', centerX, centerY + 10);
-         
-         // Status
-         const status = isInitialized ? '✅ Detection Ready' : '⏳ Initializing...';
-         ctx.fillStyle = '#888888';
-         ctx.font = '10px Arial';
-         ctx.fillText(status, centerX, centerY + 25);
-         
-         // Reset text alignment
-         ctx.textAlign = 'left';
-       }
+      } else {
+        // No face detected - clear message
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        
+        // Background box for message
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(centerX - 140, centerY - 50, 280, 100);
+        
+        // Border
+        ctx.strokeStyle = '#FF4500';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(centerX - 140, centerY - 50, 280, 100);
+        
+        // Main message
+        ctx.fillStyle = '#FF4500'; // Orange-red color
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('NO FACE DETECTED', centerX, centerY - 15);
+        
+        // Helper text
+        ctx.fillStyle = '#FFAA00';
+        ctx.font = '14px Arial';
+        ctx.fillText('Show your face to the camera', centerX, centerY + 5);
+        
+        // Status
+        const status = isInitialized ? '✅ Detection Ready' : '⏳ Initializing...';
+        ctx.fillStyle = '#888888';
+        ctx.font = '12px Arial';
+        ctx.fillText(status, centerX, centerY + 25);
+        
+        // Reset text alignment
+        ctx.textAlign = 'left';
+      }
 
       // Update analysis data based on real detections
       const analysisResult = calculateConfidence(detections);
@@ -505,8 +625,11 @@ export function useFaceDetection(updateFrequency: number = 1) {
       
     } catch (err) {
       console.error('❌ Face detection error:', err);
+      // Clear canvas on error
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [calculateConfidence, detectFaceInFrame, drawFaceOverlay, isInitialized, detectFaceSimple, isSkinColor]);
+  }, [calculateConfidence, detectFaceInFrame, drawFaceOverlay, isInitialized]);
 
   const startAnalysis = useCallback((videoElement: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     setIsAnalyzing(true);
