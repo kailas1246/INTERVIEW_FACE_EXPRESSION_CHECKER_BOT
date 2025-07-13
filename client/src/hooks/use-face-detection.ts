@@ -49,8 +49,8 @@ export function useFaceDetection(updateFrequency: number = 1) {
   }, []);
 
   const calculateConfidence = useCallback((detections: any[] = []): AnalysisData => {
-    // For demo purposes, generate realistic mock data when face is detected
-    if (detections.length > 0 || true) { // Mock face detection as always successful
+    // Only generate data when face is actually detected
+    if (detections.length > 0) {
       const time = Date.now() / 1000;
       
       // Generate varying but realistic confidence scores
@@ -90,50 +90,64 @@ export function useFaceDetection(updateFrequency: number = 1) {
     if (!videoElement || !canvas) return;
 
     try {
-      // Clear canvas and draw mock overlay
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw mock face detection box
-        ctx.strokeStyle = '#00FFFF';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const boxWidth = 200;
-        const boxHeight = 250;
-        
-        ctx.strokeRect(
-          centerX - boxWidth/2,
-          centerY - boxHeight/2,
-          boxWidth,
-          boxHeight
-        );
-        
-        // Draw mock landmarks points
-        ctx.fillStyle = '#00FFFF';
-        const points = [
-          // Eyes
-          { x: centerX - 30, y: centerY - 40 },
-          { x: centerX + 30, y: centerY - 40 },
-          // Nose
-          { x: centerX, y: centerY },
-          // Mouth corners
-          { x: centerX - 20, y: centerY + 40 },
-          { x: centerX + 20, y: centerY + 40 },
-        ];
-        
-        points.forEach(point => {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
-          ctx.fill();
-        });
       }
 
-      // Update analysis data with mock detections
-      const analysisResult = calculateConfidence([{}]); // Pass mock detection
+      // For demo purposes, simulate face detection based on video feed
+      // In a real implementation, you would use face-api.js or similar library
+      // For now, we'll simulate that a face is detected if the video is playing
+      const isFaceDetected = videoElement.videoWidth > 0 && videoElement.videoHeight > 0 && 
+                            !videoElement.paused && !videoElement.ended;
+
+      let detections: any[] = [];
+      
+      if (isFaceDetected) {
+        // Mock detection data - in real implementation this would come from face-api.js
+        detections = [{}];
+        
+        // Draw mock face detection box only when face is "detected"
+        if (ctx) {
+          ctx.strokeStyle = '#00FFFF';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const boxWidth = 200;
+          const boxHeight = 250;
+          
+          ctx.strokeRect(
+            centerX - boxWidth/2,
+            centerY - boxHeight/2,
+            boxWidth,
+            boxHeight
+          );
+          
+          // Draw mock landmarks points
+          ctx.fillStyle = '#00FFFF';
+          const points = [
+            // Eyes
+            { x: centerX - 30, y: centerY - 40 },
+            { x: centerX + 30, y: centerY - 40 },
+            // Nose
+            { x: centerX, y: centerY },
+            // Mouth corners
+            { x: centerX - 20, y: centerY + 40 },
+            { x: centerX + 20, y: centerY + 40 },
+          ];
+          
+          points.forEach(point => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+          });
+        }
+      }
+
+      // Update analysis data based on actual detections
+      const analysisResult = calculateConfidence(detections);
       setAnalysisData(analysisResult);
       
     } catch (err) {
