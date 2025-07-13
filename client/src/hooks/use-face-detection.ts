@@ -185,68 +185,109 @@ export function useFaceDetection(updateFrequency: number = 1) {
     };
   }, []);
 
-  // Draw SINGLE clean overlay - no doubles
-  const drawSingleOverlay = useCallback((canvas: HTMLCanvasElement, hasFace: boolean) => {
+  // SINGLE overlay drawing function - prevents double overlay
+  const drawSingleOverlay = useCallback((canvas: HTMLCanvasElement, faceDetected: boolean) => {
+    if (!canvas) return;
+    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    // CRITICAL: Clear canvas completely first
+    
+    // CRITICAL: Clear entire canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (hasFace) {
-      // Draw simple face detection box
+    
+    if (faceDetected) {
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const boxSize = Math.min(canvas.width, canvas.height) / 2;
       
-      // Face box
+      // Adaptive box size based on canvas dimensions
+      const baseSize = Math.min(canvas.width * 0.4, canvas.height * 0.4);
+      const boxWidth = baseSize;
+      const boxHeight = baseSize * 1.2; // Slightly taller for face proportions
+      
+      // Face detection box with proper centering
       ctx.strokeStyle = '#00FFFF';
       ctx.lineWidth = 3;
       ctx.setLineDash([10, 5]);
-      ctx.strokeRect(centerX - boxSize/2, centerY - boxSize/2, boxSize, boxSize);
+      const boxX = centerX - boxWidth / 2;
+      const boxY = centerY - boxHeight / 2;
+      ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
       
-      // Face detected text
+      // Face detected text - positioned above the box
       ctx.fillStyle = '#00FFFF';
-      ctx.font = 'bold 18px Arial';
+      ctx.font = `bold ${Math.max(14, canvas.width * 0.03)}px Arial`;
       ctx.textAlign = 'center';
-      ctx.fillText('FACE DETECTED', centerX, centerY - boxSize/2 - 20);
+      ctx.fillText('FACE DETECTED', centerX, boxY - 15);
       
-      // Simple eye markers
+      // Eye markers - properly positioned within face area
+      const eyeY = centerY - boxHeight * 0.15;
+      const eyeWidth = boxWidth * 0.12;
+      const eyeHeight = boxHeight * 0.06;
+      const eyeSpacing = boxWidth * 0.25;
+      
       ctx.fillStyle = '#FF0000';
-      ctx.fillRect(centerX - 30, centerY - 20, 15, 8);
-      ctx.fillRect(centerX + 15, centerY - 20, 15, 8);
+      // Left eye
+      ctx.fillRect(centerX - eyeSpacing - eyeWidth/2, eyeY - eyeHeight/2, eyeWidth, eyeHeight);
+      // Right eye  
+      ctx.fillRect(centerX + eyeSpacing - eyeWidth/2, eyeY - eyeHeight/2, eyeWidth, eyeHeight);
       
-      // Mouth marker
+      // Mouth marker - positioned in lower face area
+      const mouthY = centerY + boxHeight * 0.2;
+      const mouthWidth = boxWidth * 0.2;
+      const mouthHeight = boxHeight * 0.04;
+      
       ctx.fillStyle = '#00FF00';
-      ctx.fillRect(centerX - 20, centerY + 20, 40, 6);
+      ctx.fillRect(centerX - mouthWidth/2, mouthY - mouthHeight/2, mouthWidth, mouthHeight);
+      
+      // Additional alignment indicators
+      ctx.strokeStyle = '#FFFF00';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      
+      // Center crosshair for alignment reference
+      const crossSize = 10;
+      ctx.beginPath();
+      ctx.moveTo(centerX - crossSize, centerY);
+      ctx.lineTo(centerX + crossSize, centerY);
+      ctx.moveTo(centerX, centerY - crossSize);
+      ctx.lineTo(centerX, centerY + crossSize);
+      ctx.stroke();
       
     } else {
-      // No face detected message
+      // No face detected message - centered and properly sized
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
       
+      // Adaptive message box
+      const msgWidth = Math.min(300, canvas.width * 0.8);
+      const msgHeight = Math.min(120, canvas.height * 0.3);
+      
       ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      ctx.fillRect(centerX - 150, centerY - 60, 300, 120);
+      ctx.fillRect(centerX - msgWidth/2, centerY - msgHeight/2, msgWidth, msgHeight);
       
       ctx.strokeStyle = '#FF4500';
       ctx.lineWidth = 2;
-      ctx.strokeRect(centerX - 150, centerY - 60, 300, 120);
+      ctx.setLineDash([]);
+      ctx.strokeRect(centerX - msgWidth/2, centerY - msgHeight/2, msgWidth, msgHeight);
       
+      // Main message text
       ctx.fillStyle = '#FF4500';
-      ctx.font = 'bold 22px Arial';
+      ctx.font = `bold ${Math.max(16, canvas.width * 0.035)}px Arial`;
       ctx.textAlign = 'center';
-      ctx.fillText('NO FACE DETECTED', centerX, centerY - 20);
+      ctx.fillText('NO FACE DETECTED', centerX, centerY - 15);
       
+      // Instruction text
       ctx.fillStyle = '#FFAA00';
-      ctx.font = '16px Arial';
+      ctx.font = `${Math.max(12, canvas.width * 0.025)}px Arial`;
       ctx.fillText('Position your face in front of camera', centerX, centerY + 10);
       
+      // Status text
       ctx.fillStyle = '#888888';
-      ctx.font = '12px Arial';
-      ctx.fillText('Detection Ready', centerX, centerY + 35);
+      ctx.font = `${Math.max(10, canvas.width * 0.02)}px Arial`;
+      ctx.fillText('Detection Ready', centerX, centerY + 30);
     }
     
-    ctx.textAlign = 'left'; // Reset
+    ctx.setLineDash([]); // Reset line dash
+    ctx.textAlign = 'left'; // Reset text alignment
   }, []);
 
   // Main analysis function - SINGLE execution per call

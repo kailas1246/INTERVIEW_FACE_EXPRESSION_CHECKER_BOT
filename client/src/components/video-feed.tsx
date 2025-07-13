@@ -26,36 +26,71 @@ export function VideoFeed({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Sync canvas size with video - IMPORTANT for preventing double overlay
+    // Sync canvas size with video - CRITICAL for overlay alignment
     if (videoRef.current && canvasRef.current && containerRef.current) {
       const updateCanvasSize = () => {
         const video = videoRef.current!;
         const canvas = canvasRef.current!;
         const container = containerRef.current!;
         
-        // Set canvas size to match container exactly
-        const rect = container.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        
-        // Also set CSS size to prevent scaling issues
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
-        
-        console.log(`📐 Canvas resized to: ${canvas.width}x${canvas.height}`);
+        if (video.videoWidth && video.videoHeight) {
+          // Get the actual displayed video dimensions
+          const videoAspect = video.videoWidth / video.videoHeight;
+          const containerRect = container.getBoundingClientRect();
+          const containerAspect = containerRect.width / containerRect.height;
+          
+          let displayWidth, displayHeight;
+          
+          if (videoAspect > containerAspect) {
+            // Video is wider than container
+            displayWidth = containerRect.width;
+            displayHeight = containerRect.width / videoAspect;
+          } else {
+            // Video is taller than container
+            displayHeight = containerRect.height;
+            displayWidth = containerRect.height * videoAspect;
+          }
+          
+          // Set canvas to match actual video display dimensions
+          canvas.width = displayWidth;
+          canvas.height = displayHeight;
+          
+          // Position canvas to center over video
+          const offsetX = (containerRect.width - displayWidth) / 2;
+          const offsetY = (containerRect.height - displayHeight) / 2;
+          
+          canvas.style.width = displayWidth + 'px';
+          canvas.style.height = displayHeight + 'px';
+          canvas.style.left = offsetX + 'px';
+          canvas.style.top = offsetY + 'px';
+          
+          console.log(`📐 Canvas aligned: ${displayWidth}x${displayHeight} at offset (${offsetX}, ${offsetY})`);
+        } else {
+          // Fallback: match container size if video dimensions not available
+          const rect = container.getBoundingClientRect();
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+          canvas.style.width = rect.width + 'px';
+          canvas.style.height = rect.height + 'px';
+          canvas.style.left = '0px';
+          canvas.style.top = '0px';
+        }
       };
 
       const video = videoRef.current;
       video.addEventListener('loadedmetadata', updateCanvasSize);
       video.addEventListener('canplay', updateCanvasSize);
+      video.addEventListener('resize', updateCanvasSize);
       window.addEventListener('resize', updateCanvasSize);
       
-      // Initial size update
+      // Initial size update with delay to ensure video is loaded
       setTimeout(updateCanvasSize, 100);
+      setTimeout(updateCanvasSize, 500); // Additional delay for safety
 
       return () => {
         video.removeEventListener('loadedmetadata', updateCanvasSize);
         video.removeEventListener('canplay', updateCanvasSize);
+        video.removeEventListener('resize', updateCanvasSize);
         window.removeEventListener('resize', updateCanvasSize);
       };
     }
@@ -87,10 +122,10 @@ export function VideoFeed({
             playsInline
           />
           
-          {/* Canvas Overlay for Face Detection - ONLY overlay, no double drawing */}
+          {/* Canvas Overlay for Face Detection - PROPERLY ALIGNED */}
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
+            className="absolute pointer-events-none"
             style={{ 
               position: 'absolute',
               top: 0,
